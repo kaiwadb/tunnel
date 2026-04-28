@@ -9,7 +9,6 @@ publish = false
 
 [dependencies]
 clap = { version = "4.5.41", features = ["derive", "env"] }
-ctrlc = "3.4.7"
 futures-util = "0.3.31"
 mongodb = "3.2.4"
 serde = { version = "1.0.219", features = ["derive"] }
@@ -18,13 +17,19 @@ sqlx = { version = "0.8.6", features = [
     "runtime-tokio-rustls",
     "postgres",
     "mysql",
-    "sqlite",
     "chrono",
     "uuid",
 ] }
-syntect = "5.2.0"
+reqwest = { version = "0.12", default-features = false, features = ["json", "native-tls"] }
+tiberius = { version = "0.12", default-features = false, features = ["tds73", "native-tls"] }
+thiserror = "2"
 tokio = { version = "1.46.1", features = ["full"] }
 tokio-tungstenite = { version = "0.27.0", features = ["native-tls"] }
+tokio-util = { version = "0.7", features = ["compat"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+percent-encoding = "2"
+url = "2"
 
 [profile.dist]
 inherits = "release"
