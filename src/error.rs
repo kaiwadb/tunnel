@@ -12,9 +12,6 @@ pub enum AgentError {
     #[error("SQL error: {0}")]
     Sql(#[from] sqlx::Error),
 
-    #[error("Unsupported engine: {0}")]
-    UnsupportedEngine(String),
-
     #[error("Connection error: {0}")]
     Connection(String),
 

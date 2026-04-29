@@ -4,10 +4,9 @@ use reqwest::Client;
 use serde::Deserialize;
 use serde_json::Value;
 use tracing::info;
-use percent_encoding::percent_decode_str;
-use url::Url;
 
 use crate::error::AgentError;
+use crate::params::ConnectionParams;
 
 static HTTP_CLIENT: LazyLock<Client> = LazyLock::new(|| {
     Client::builder()
@@ -15,19 +14,34 @@ static HTTP_CLIENT: LazyLock<Client> = LazyLock::new(|| {
         .expect("failed to build HTTP client")
 });
 
-pub async fn execute(uri: &str, query: &str) -> Result<Value, AgentError> {
-    let parsed = parse_uri(uri)?;
+pub async fn execute(conn: &ConnectionParams, query: &str) -> Result<Value, AgentError> {
+    let ConnectionParams::Clickhouse {
+        host,
+        port,
+        username,
+        password,
+        database,
+        secure,
+    } = conn
+    else {
+        return Err(AgentError::Connection(
+            "clickhouse executor received non-clickhouse connection params".into(),
+        ));
+    };
 
-    info!(host = %parsed.url, "executing clickhouse query");
+    let scheme = if *secure { "https" } else { "http" };
+    let url = format!("{scheme}://{host}:{port}/");
 
-    let mut request = HTTP_CLIENT.post(&parsed.url);
+    info!(url = %url, "executing clickhouse query");
 
-    if let Some(db) = &parsed.database {
+    let mut request = HTTP_CLIENT.post(&url);
+
+    if let Some(db) = database {
         request = request.query(&[("database", db.as_str())]);
     }
 
-    if let Some(user) = &parsed.username {
-        request = request.basic_auth(user, parsed.password.as_deref());
+    if let Some(user) = username {
+        request = request.basic_auth(user, password.as_deref());
     }
 
     let body = format!("{query} FORMAT JSON");
@@ -56,52 +70,4 @@ pub async fn execute(uri: &str, query: &str) -> Result<Value, AgentError> {
 #[derive(Deserialize)]
 struct ClickhouseResponse {
     data: Vec<Value>,
-}
-
-struct ParsedUri {
-    url: String,
-    database: Option<String>,
-    username: Option<String>,
-    password: Option<String>,
-}
-
-fn parse_uri(uri: &str) -> Result<ParsedUri, AgentError> {
-    // Normalize clickhouse:// scheme to http:// for parsing
-    let normalized = if uri.starts_with("clickhouse://") {
-        uri.replacen("clickhouse://", "http://", 1)
-    } else {
-        uri.to_string()
-    };
-
-    let parsed = Url::parse(&normalized)
-        .map_err(|e| AgentError::Connection(format!("invalid clickhouse URI: {e}")))?;
-
-    let host = parsed.host_str().unwrap_or("localhost");
-    let port = parsed.port().unwrap_or(8123);
-    let database = parsed
-        .path()
-        .strip_prefix('/')
-        .filter(|s| !s.is_empty())
-        .map(String::from);
-    let username = if parsed.username().is_empty() {
-        None
-    } else {
-        Some(
-            percent_decode_str(parsed.username())
-                .decode_utf8_lossy()
-                .into_owned(),
-        )
-    };
-    let password = parsed.password().map(|p| {
-        percent_decode_str(p)
-            .decode_utf8_lossy()
-            .into_owned()
-    });
-
-    Ok(ParsedUri {
-        url: format!("http://{host}:{port}/"),
-        database,
-        username,
-        password,
-    })
 }
