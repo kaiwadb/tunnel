@@ -1,23 +1,12 @@
 mod communication;
+mod connection;
+mod engine;
+mod error;
 mod query;
 
 use clap::Parser;
-use communication::{ServerCommand, ServerCommandMsg};
-use futures_util::{SinkExt, StreamExt};
-use std::time::Duration;
-use tokio::time::interval;
-use tokio_tungstenite::{
-    connect_async,
-    tungstenite::{Message, client::IntoClientRequest, http::Request},
-};
-
-use crate::{
-    communication::{AgentResult, AgentResultMsg, PayloadFromAgent},
-    query::QueryOptions,
-};
-
-const HEARTBEAT_PERIOD: Duration = Duration::from_secs(15);
-const RECONNECT_DELAY: Duration = Duration::from_secs(5);
+use tracing::info;
+use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 #[derive(Parser)]
 #[command(name = "kaiwadb-agent")]
@@ -31,132 +20,21 @@ struct Args {
     /// Authentication token
     #[arg(short, long, env = "KAIWADB_AGENT_TOKEN")]
     token: String,
-
-    /// Enable rich logging with colors, syntax highlighting, and loading indicators
-    #[arg(short, long, default_value = "false")]
-    rich_logging: bool,
-
-    /// Maximum length of query results printed to stdout
-    #[arg(short = 'l', long, default_value = "2000")]
-    max_stdout_result_length: usize,
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), error::AgentError> {
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let registry = tracing_subscriber::registry().with(filter);
+
+    if std::io::IsTerminal::is_terminal(&std::io::stdout()) {
+        registry.with(fmt::layer().pretty()).init();
+    } else {
+        registry.with(fmt::layer().json()).init();
+    }
+
     let args = Args::parse();
 
-    let query_options = QueryOptions {
-        rich_logging: args.rich_logging,
-        max_stdout_result_length: args.max_stdout_result_length,
-    };
-
-    println!("🚀 Starting KaiwaDB Agent");
-    println!("📡 Connecting to: {}", args.uri);
-
-    let mut request = args.uri.into_client_request()?;
-    request
-        .headers_mut()
-        .insert("Authorization", format!("Bearer {}", args.token).parse()?);
-
-    loop {
-        match connect_and_handle(request.clone(), query_options.clone()).await {
-            Ok(_) => {
-                println!("Connection ended normally");
-                break;
-            }
-            Err(e) => {
-                println!("❌ Connection error: {}", e);
-
-                println!("⏳ Reconnecting in {}s...", RECONNECT_DELAY.as_secs());
-                tokio::time::sleep(RECONNECT_DELAY).await;
-            }
-        }
-    }
-    Ok(())
-}
-
-async fn connect_and_handle(
-    request: Request<()>,
-    query_options: QueryOptions,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let (ws_stream, _) = connect_async(request).await?;
-
-    println!("✅ Connected!");
-
-    let (mut write, mut read) = ws_stream.split();
-    let mut heartbeat_interval = interval(HEARTBEAT_PERIOD);
-
-    loop {
-        tokio::select! {
-            msg = read.next() => {
-                match msg {
-                    Some(Ok(Message::Text(text))) => {
-                        if let Err(e) = handle_server_message(text.to_string(), &mut write, query_options.clone()).await {
-                            println!("Error handling message: {}", e);
-                        }
-                    }
-                    Some(Ok(Message::Ping(payload))) => {
-                        write.send(Message::Pong(payload)).await?;
-                    }
-                    Some(Ok(Message::Pong(_))) => {
-                        continue
-                    }
-                    Some(Ok(Message::Close(frame))) => {
-                        println!("Connection closed by server: {:?}", frame);
-                        break;
-                    }
-                    Some(Ok(Message::Binary(_))) => {
-                        continue
-                    }
-                    Some(Ok(Message::Frame(_))) => {
-                        continue
-                    }
-                    Some(Err(e)) => {
-                        return Err(format!("WebSocket error: {}", e).into());
-                    }
-                    None => {
-                        return Err("Connection closed unexpectedly".into());
-                    }
-                }
-            }
-            _ = heartbeat_interval.tick() => {
-                if let Err(e) = write.send(Message::Ping("heartbeat".into())).await {
-                    return Err(format!("Failed to send heartbeat: {}", e).into());
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
-async fn handle_server_message(
-    text: String,
-    write: &mut futures_util::stream::SplitSink<
-        tokio_tungstenite::WebSocketStream<
-            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
-        >,
-        Message,
-    >,
-    query_options: QueryOptions,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let msg: ServerCommandMsg = serde_json::from_str(&text)
-        .map_err(|e| format!("Failed to parse server message: {}", e))?;
-
-    match msg.payload {
-        ServerCommand::Query(query) => {
-            let data = query.execute(query_options).await?;
-            println!("Query completed successfully");
-            let response = PayloadFromAgent::Result(AgentResultMsg {
-                channel: msg.channel,
-                payload: AgentResult::QueryResult(data),
-            });
-            let response_txt = serde_json::to_string(&response)?;
-            write
-                .send(Message::Text(response_txt.as_str().into()))
-                .await?;
-            println!("Sent response");
-        }
-    }
-
-    Ok(())
+    info!(uri = %args.uri, "starting kaiwadb agent");
+    connection::run(args.uri, args.token).await
 }

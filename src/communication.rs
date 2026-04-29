@@ -1,6 +1,7 @@
-use super::query::Query;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+use crate::query::Query;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ServerCommand {
