@@ -2,6 +2,7 @@ mod communication;
 mod connection;
 mod engine;
 mod error;
+mod params;
 mod query;
 
 use clap::Parser;

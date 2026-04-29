@@ -2,27 +2,50 @@ use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 
 use serde_json::Value;
-use sqlx::mysql::{MySqlPool, MySqlRow};
+use sqlx::mysql::{MySqlConnectOptions, MySqlPool, MySqlPoolOptions, MySqlRow};
 use sqlx::{Column, Row, TypeInfo};
 use tracing::info;
 
 use crate::error::AgentError;
+use crate::params::ConnectionParams;
 
 static POOLS: LazyLock<Mutex<HashMap<String, MySqlPool>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-pub async fn execute(uri: &str, query: &str) -> Result<Value, AgentError> {
+pub async fn execute(conn: &ConnectionParams, query: &str) -> Result<Value, AgentError> {
+    let ConnectionParams::Mysql {
+        host,
+        port,
+        username,
+        password,
+        database,
+        ssl_mode,
+    } = conn
+    else {
+        return Err(AgentError::Connection(
+            "mysql executor received non-mysql connection params".into(),
+        ));
+    };
+
+    let cache_key = format!("{host}:{port}/{database}@{username}");
     let pool = {
         let pools = POOLS.lock().unwrap();
-        pools.get(uri).cloned()
+        pools.get(&cache_key).cloned()
     };
 
     let pool = match pool {
         Some(pool) => pool,
         None => {
-            info!("creating new mysql connection pool");
-            let pool = MySqlPool::connect(uri).await?;
-            POOLS.lock().unwrap().insert(uri.to_string(), pool.clone());
+            info!(host = %host, port = port, database = %database, "creating new mysql connection pool");
+            let options = MySqlConnectOptions::new()
+                .host(host)
+                .port(*port)
+                .username(username)
+                .password(password)
+                .database(database)
+                .ssl_mode(ssl_mode.to_sqlx());
+            let pool = MySqlPoolOptions::new().connect_with(options).await?;
+            POOLS.lock().unwrap().insert(cache_key, pool.clone());
             pool
         }
     };

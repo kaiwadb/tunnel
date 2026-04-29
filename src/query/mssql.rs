@@ -3,15 +3,43 @@ use tiberius::{AuthMethod, Client, Config};
 use tokio::net::TcpStream;
 use tokio_util::compat::TokioAsyncWriteCompatExt;
 use tracing::info;
-use url::Url;
 
 use crate::error::AgentError;
+use crate::params::ConnectionParams;
 
-pub async fn execute(uri: &str, query: &str) -> Result<Value, AgentError> {
-    let (config, addr) = parse_uri(uri)?;
+pub async fn execute(conn: &ConnectionParams, query: &str) -> Result<Value, AgentError> {
+    let ConnectionParams::Mssql {
+        host,
+        port,
+        instance,
+        username,
+        password,
+        database,
+        trust_cert,
+    } = conn
+    else {
+        return Err(AgentError::Connection(
+            "mssql executor received non-mssql connection params".into(),
+        ));
+    };
 
-    info!("connecting to mssql");
+    info!(host = %host, port = port, "connecting to mssql");
 
+    let mut config = Config::new();
+    config.host(host);
+    config.port(*port);
+    if *trust_cert {
+        config.trust_cert();
+    }
+    if let Some(name) = instance {
+        config.instance_name(name);
+    }
+    if let Some(db) = database {
+        config.database(db);
+    }
+    config.authentication(AuthMethod::sql_server(username, password));
+
+    let addr = format!("{host}:{port}");
     let tcp = TcpStream::connect(&addr)
         .await
         .map_err(|e| AgentError::Connection(format!("mssql TCP error: {e}")))?;
@@ -22,7 +50,6 @@ pub async fn execute(uri: &str, query: &str) -> Result<Value, AgentError> {
         .await
         .map_err(|e| AgentError::Connection(format!("mssql connection error: {e}")))?;
 
-    // Use FOR JSON PATH for server-side JSON conversion
     let json_query = format!(
         "SELECT * FROM ({query}) AS q FOR JSON PATH, INCLUDE_NULL_VALUES"
     );
@@ -37,7 +64,6 @@ pub async fn execute(uri: &str, query: &str) -> Result<Value, AgentError> {
         .await
         .map_err(|e| AgentError::Connection(format!("mssql fetch error: {e}")))?;
 
-    // FOR JSON PATH splits long JSON across multiple rows — concatenate them
     let json_string: String = rows
         .iter()
         .filter_map(|row| row.try_get::<&str, _>(0).ok().flatten())
@@ -49,45 +75,4 @@ pub async fn execute(uri: &str, query: &str) -> Result<Value, AgentError> {
 
     let result: Value = serde_json::from_str(&json_string)?;
     Ok(result)
-}
-
-fn parse_uri(uri: &str) -> Result<(Config, String), AgentError> {
-    // Normalize mssql:// or sqlserver:// scheme to http:// for URL parsing
-    let normalized = if uri.starts_with("mssql://") {
-        uri.replacen("mssql://", "http://", 1)
-    } else if uri.starts_with("sqlserver://") {
-        uri.replacen("sqlserver://", "http://", 1)
-    } else {
-        uri.to_string()
-    };
-
-    let parsed = Url::parse(&normalized)
-        .map_err(|e| AgentError::Connection(format!("invalid mssql URI: {e}")))?;
-
-    let host = parsed.host_str().unwrap_or("localhost");
-    let port = parsed.port().unwrap_or(1433);
-
-    let mut config = Config::new();
-    config.host(host);
-    config.port(port);
-    config.trust_cert();
-
-    if let Some(db) = parsed
-        .path()
-        .strip_prefix('/')
-        .filter(|s| !s.is_empty())
-    {
-        config.database(db);
-    }
-
-    let username = if parsed.username().is_empty() {
-        "sa"
-    } else {
-        parsed.username()
-    };
-    let password = parsed.password().unwrap_or("");
-    config.authentication(AuthMethod::sql_server(username, password));
-
-    let addr = format!("{host}:{port}");
-    Ok((config, addr))
 }

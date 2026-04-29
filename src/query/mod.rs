@@ -12,10 +12,14 @@ use tracing::{debug, error, info};
 
 use crate::engine::Engine;
 use crate::error::AgentError;
+use crate::params::ConnectionParams;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Query {
-    pub uri: String,
+    pub connection: ConnectionParams,
+    /// Engine version metadata. Kept on the wire for future version-conditional
+    /// logic; not used for connection (backend validates engine/connection
+    /// variants match before forwarding).
     pub engine: Engine,
     pub data: Value,
 }
@@ -30,42 +34,41 @@ impl Query {
     pub async fn execute(self) -> Result<Value, AgentError> {
         let start = Instant::now();
 
-        let result = match self.engine {
-            Engine::Mongo { .. } => {
+        let Query { connection, engine: _, data } = self;
+
+        let result = match &connection {
+            ConnectionParams::Mongo { .. } => {
                 let MongoData {
                     collection,
                     pipeline,
-                } = from_value(self.data)?;
+                } = from_value(data)?;
                 info!(collection = %collection, "executing mongodb query");
                 debug!(pipeline = ?pipeline);
-                mongo::execute(&self.uri, collection, pipeline).await
+                mongo::execute(&connection, collection, pipeline).await
             }
-            Engine::Postgres { .. } => {
-                let query: String = from_value(self.data)?;
+            ConnectionParams::Postgres { .. } => {
+                let query: String = from_value(data)?;
                 info!("executing postgresql query");
                 debug!(query = %query);
-                postgres::execute(&self.uri, &query).await
+                postgres::execute(&connection, &query).await
             }
-            Engine::MySQL { .. } => {
-                let query: String = from_value(self.data)?;
+            ConnectionParams::Mysql { .. } => {
+                let query: String = from_value(data)?;
                 info!("executing mysql query");
                 debug!(query = %query);
-                mysql::execute(&self.uri, &query).await
+                mysql::execute(&connection, &query).await
             }
-            Engine::MsSql { .. } => {
-                let query: String = from_value(self.data)?;
+            ConnectionParams::Mssql { .. } => {
+                let query: String = from_value(data)?;
                 info!("executing mssql query");
                 debug!(query = %query);
-                mssql::execute(&self.uri, &query).await
+                mssql::execute(&connection, &query).await
             }
-            Engine::Clickhouse { .. } => {
-                let query: String = from_value(self.data)?;
+            ConnectionParams::Clickhouse { .. } => {
+                let query: String = from_value(data)?;
                 info!("executing clickhouse query");
                 debug!(query = %query);
-                clickhouse::execute(&self.uri, &query).await
-            }
-            ref engine => {
-                return Err(AgentError::UnsupportedEngine(format!("{engine:?}")));
+                clickhouse::execute(&connection, &query).await
             }
         };
 
