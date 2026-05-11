@@ -20,6 +20,4 @@ FROM scratch AS runtime
 
 COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/kaiwadb-tunnel /usr/local/bin/kaiwadb-tunnel
 
-EXPOSE 9100
-
-CMD ["kaiwadb-tunnel", "--token", "$KAIWADB_TUNNEL_TOKEN"]
+ENTRYPOINT ["kaiwadb-tunnel"]
