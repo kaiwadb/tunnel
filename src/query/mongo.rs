@@ -6,7 +6,7 @@ use percent_encoding::{AsciiSet, CONTROLS, utf8_percent_encode};
 use serde_json::{Value, to_value};
 use tracing::info;
 
-use crate::error::AgentError;
+use crate::error::TunnelError;
 use crate::params::{ConnectionParams, MongoHost};
 
 static CLIENTS: LazyLock<Mutex<HashMap<String, Client>>> =
@@ -38,7 +38,7 @@ pub async fn execute(
     conn: &ConnectionParams,
     collection: String,
     pipeline: Vec<Document>,
-) -> Result<Value, AgentError> {
+) -> Result<Value, TunnelError> {
     let ConnectionParams::Mongo {
         srv,
         hosts,
@@ -50,7 +50,7 @@ pub async fn execute(
         tls,
     } = conn
     else {
-        return Err(AgentError::Connection(
+        return Err(TunnelError::Connection(
             "mongo executor received non-mongo connection params".into(),
         ));
     };
@@ -108,14 +108,14 @@ fn build_mongo_uri(
     auth_source: Option<&str>,
     replica_set: Option<&str>,
     tls: Option<bool>,
-) -> Result<String, AgentError> {
+) -> Result<String, TunnelError> {
     if hosts.is_empty() {
-        return Err(AgentError::Connection(
+        return Err(TunnelError::Connection(
             "mongo connection requires at least one host".into(),
         ));
     }
     if srv && hosts.len() != 1 {
-        return Err(AgentError::Connection(
+        return Err(TunnelError::Connection(
             "mongo SRV connection requires exactly one host".into(),
         ));
     }

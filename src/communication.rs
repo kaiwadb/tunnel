@@ -9,7 +9,7 @@ pub enum ServerCommand {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum AgentResult {
+pub enum TunnelResult {
     QueryResult(Value),
 }
 
@@ -20,16 +20,16 @@ pub struct ServerCommandMsg {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct AgentResultMsg {
+pub struct TunnelResultMsg {
     pub channel: String,
-    pub payload: AgentResult,
+    pub payload: TunnelResult,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct AgentNotification {}
+pub struct TunnelNotification {}
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum PayloadFromAgent {
-    Result(AgentResultMsg),
-    Notification(AgentNotification),
+pub enum PayloadFromTunnel {
+    Result(TunnelResultMsg),
+    Notification(TunnelNotification),
 }

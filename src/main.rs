@@ -10,21 +10,21 @@ use tracing::info;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 #[derive(Parser)]
-#[command(name = "kaiwadb-agent")]
-#[command(about = "KaiwaDB Agent WebSocket client")]
+#[command(name = "kaiwadb-tunnel")]
+#[command(about = "KaiwaDB Tunnel WebSocket client")]
 #[command(version)]
 struct Args {
     /// WebSocket URL to connect to
-    #[arg(short, long, default_value = "wss://api.kaiwadb.com/agent/connector")]
+    #[arg(short, long, default_value = "wss://api.kaiwadb.com/tunnel/connector")]
     uri: String,
 
     /// Authentication token
-    #[arg(short, long, env = "KAIWADB_AGENT_TOKEN")]
+    #[arg(short, long, env = "KAIWADB_TUNNEL_TOKEN")]
     token: String,
 }
 
 #[tokio::main]
-async fn main() -> Result<(), error::AgentError> {
+async fn main() -> Result<(), error::TunnelError> {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     let registry = tracing_subscriber::registry().with(filter);
 
@@ -36,6 +36,6 @@ async fn main() -> Result<(), error::AgentError> {
 
     let args = Args::parse();
 
-    info!(uri = %args.uri, "starting kaiwadb agent");
+    info!(uri = %args.uri, "starting kaiwadb tunnel");
     connection::run(args.uri, args.token).await
 }

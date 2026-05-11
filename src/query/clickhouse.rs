@@ -5,7 +5,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use tracing::info;
 
-use crate::error::AgentError;
+use crate::error::TunnelError;
 use crate::params::ConnectionParams;
 
 static HTTP_CLIENT: LazyLock<Client> = LazyLock::new(|| {
@@ -14,7 +14,7 @@ static HTTP_CLIENT: LazyLock<Client> = LazyLock::new(|| {
         .expect("failed to build HTTP client")
 });
 
-pub async fn execute(conn: &ConnectionParams, query: &str) -> Result<Value, AgentError> {
+pub async fn execute(conn: &ConnectionParams, query: &str) -> Result<Value, TunnelError> {
     let ConnectionParams::Clickhouse {
         host,
         port,
@@ -24,7 +24,7 @@ pub async fn execute(conn: &ConnectionParams, query: &str) -> Result<Value, Agen
         secure,
     } = conn
     else {
-        return Err(AgentError::Connection(
+        return Err(TunnelError::Connection(
             "clickhouse executor received non-clickhouse connection params".into(),
         ));
     };
@@ -49,12 +49,12 @@ pub async fn execute(conn: &ConnectionParams, query: &str) -> Result<Value, Agen
         .body(body)
         .send()
         .await
-        .map_err(|e| AgentError::Connection(format!("clickhouse HTTP error: {e}")))?;
+        .map_err(|e| TunnelError::Connection(format!("clickhouse HTTP error: {e}")))?;
 
     if !response.status().is_success() {
         let status = response.status();
         let text = response.text().await.unwrap_or_default();
-        return Err(AgentError::Connection(format!(
+        return Err(TunnelError::Connection(format!(
             "clickhouse returned {status}: {text}"
         )));
     }
@@ -62,7 +62,7 @@ pub async fn execute(conn: &ConnectionParams, query: &str) -> Result<Value, Agen
     let result: ClickhouseResponse = response
         .json()
         .await
-        .map_err(|e| AgentError::Connection(format!("clickhouse response parse error: {e}")))?;
+        .map_err(|e| TunnelError::Connection(format!("clickhouse response parse error: {e}")))?;
 
     Ok(Value::Array(result.data))
 }

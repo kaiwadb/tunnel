@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Wire-compatible mirror of `kaiwadb_common::database::connection::ConnectionParams`.
-/// Agent doesn't depend on the common crate, so the type is duped here.
+/// Tunnel doesn't depend on the common crate, so the type is duped here.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "engine", rename_all = "lowercase")]
 pub enum ConnectionParams {

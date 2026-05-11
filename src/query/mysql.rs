@@ -6,13 +6,13 @@ use sqlx::mysql::{MySqlConnectOptions, MySqlPool, MySqlPoolOptions, MySqlRow};
 use sqlx::{Column, Row, TypeInfo};
 use tracing::info;
 
-use crate::error::AgentError;
+use crate::error::TunnelError;
 use crate::params::ConnectionParams;
 
 static POOLS: LazyLock<Mutex<HashMap<String, MySqlPool>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-pub async fn execute(conn: &ConnectionParams, query: &str) -> Result<Value, AgentError> {
+pub async fn execute(conn: &ConnectionParams, query: &str) -> Result<Value, TunnelError> {
     let ConnectionParams::Mysql {
         host,
         port,
@@ -22,7 +22,7 @@ pub async fn execute(conn: &ConnectionParams, query: &str) -> Result<Value, Agen
         ssl_mode,
     } = conn
     else {
-        return Err(AgentError::Connection(
+        return Err(TunnelError::Connection(
             "mysql executor received non-mysql connection params".into(),
         ));
     };

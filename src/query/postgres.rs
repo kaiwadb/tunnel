@@ -5,13 +5,13 @@ use serde_json::Value;
 use sqlx::postgres::{PgConnectOptions, PgPool, PgPoolOptions};
 use tracing::info;
 
-use crate::error::AgentError;
+use crate::error::TunnelError;
 use crate::params::ConnectionParams;
 
 static POOLS: LazyLock<Mutex<HashMap<String, PgPool>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-pub async fn execute(conn: &ConnectionParams, query: &str) -> Result<Value, AgentError> {
+pub async fn execute(conn: &ConnectionParams, query: &str) -> Result<Value, TunnelError> {
     let ConnectionParams::Postgres {
         host,
         port,
@@ -21,7 +21,7 @@ pub async fn execute(conn: &ConnectionParams, query: &str) -> Result<Value, Agen
         sslmode,
     } = conn
     else {
-        return Err(AgentError::Connection(
+        return Err(TunnelError::Connection(
             "postgres executor received non-postgres connection params".into(),
         ));
     };

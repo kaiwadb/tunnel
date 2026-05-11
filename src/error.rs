@@ -1,5 +1,5 @@
 #[derive(Debug, thiserror::Error)]
-pub enum AgentError {
+pub enum TunnelError {
     #[error("WebSocket error: {0}")]
     WebSocket(Box<tokio_tungstenite::tungstenite::Error>),
 
@@ -19,8 +19,8 @@ pub enum AgentError {
     InvalidHeader(#[from] tokio_tungstenite::tungstenite::http::header::InvalidHeaderValue),
 }
 
-impl From<tokio_tungstenite::tungstenite::Error> for AgentError {
+impl From<tokio_tungstenite::tungstenite::Error> for TunnelError {
     fn from(err: tokio_tungstenite::tungstenite::Error) -> Self {
-        AgentError::WebSocket(Box::new(err))
+        TunnelError::WebSocket(Box::new(err))
     }
 }

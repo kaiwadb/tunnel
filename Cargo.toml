@@ -1,10 +1,10 @@
 [package]
-name = "kaiwadb-agent"
+name = "kaiwadb-tunnel"
 version = "0.4.0"
 edition = "2024"
-repository = "https://github.com/kaiwadb/agent"
+repository = "https://github.com/kaiwadb/tunnel"
 license-file = "LICENSE"
-description = "KaiwaDB Agent WebSocket client"
+description = "KaiwaDB Tunnel WebSocket client"
 publish = false
 
 [dependencies]

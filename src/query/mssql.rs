@@ -4,10 +4,10 @@ use tokio::net::TcpStream;
 use tokio_util::compat::TokioAsyncWriteCompatExt;
 use tracing::info;
 
-use crate::error::AgentError;
+use crate::error::TunnelError;
 use crate::params::ConnectionParams;
 
-pub async fn execute(conn: &ConnectionParams, query: &str) -> Result<Value, AgentError> {
+pub async fn execute(conn: &ConnectionParams, query: &str) -> Result<Value, TunnelError> {
     let ConnectionParams::Mssql {
         host,
         port,
@@ -18,7 +18,7 @@ pub async fn execute(conn: &ConnectionParams, query: &str) -> Result<Value, Agen
         trust_cert,
     } = conn
     else {
-        return Err(AgentError::Connection(
+        return Err(TunnelError::Connection(
             "mssql executor received non-mssql connection params".into(),
         ));
     };
@@ -42,13 +42,13 @@ pub async fn execute(conn: &ConnectionParams, query: &str) -> Result<Value, Agen
     let addr = format!("{host}:{port}");
     let tcp = TcpStream::connect(&addr)
         .await
-        .map_err(|e| AgentError::Connection(format!("mssql TCP error: {e}")))?;
+        .map_err(|e| TunnelError::Connection(format!("mssql TCP error: {e}")))?;
     tcp.set_nodelay(true)
-        .map_err(|e| AgentError::Connection(format!("mssql TCP error: {e}")))?;
+        .map_err(|e| TunnelError::Connection(format!("mssql TCP error: {e}")))?;
 
     let mut client = Client::connect(config, tcp.compat_write())
         .await
-        .map_err(|e| AgentError::Connection(format!("mssql connection error: {e}")))?;
+        .map_err(|e| TunnelError::Connection(format!("mssql connection error: {e}")))?;
 
     let json_query = format!(
         "SELECT * FROM ({query}) AS q FOR JSON PATH, INCLUDE_NULL_VALUES"
@@ -57,12 +57,12 @@ pub async fn execute(conn: &ConnectionParams, query: &str) -> Result<Value, Agen
     let stream = client
         .query(&json_query, &[])
         .await
-        .map_err(|e| AgentError::Connection(format!("mssql query error: {e}")))?;
+        .map_err(|e| TunnelError::Connection(format!("mssql query error: {e}")))?;
 
     let rows = stream
         .into_first_result()
         .await
-        .map_err(|e| AgentError::Connection(format!("mssql fetch error: {e}")))?;
+        .map_err(|e| TunnelError::Connection(format!("mssql fetch error: {e}")))?;
 
     let json_string: String = rows
         .iter()

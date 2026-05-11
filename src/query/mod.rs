@@ -11,7 +11,7 @@ use std::time::Instant;
 use tracing::{debug, error, info};
 
 use crate::engine::Engine;
-use crate::error::AgentError;
+use crate::error::TunnelError;
 use crate::params::ConnectionParams;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -31,7 +31,7 @@ struct MongoData {
 }
 
 impl Query {
-    pub async fn execute(self) -> Result<Value, AgentError> {
+    pub async fn execute(self) -> Result<Value, TunnelError> {
         let start = Instant::now();
 
         let Query { connection, engine: _, data } = self;
