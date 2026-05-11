@@ -2,11 +2,10 @@ FROM rust:1.86.0-slim AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
-    musl-tools \
+    libssl-dev \
     make \
-    gcc
-
-RUN rustup target add x86_64-unknown-linux-musl
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -14,10 +13,15 @@ COPY ./Cargo.lock ./Cargo.lock
 COPY ./Cargo.toml ./Cargo.toml
 COPY ./src ./src
 
-RUN cargo build --release --locked --target x86_64-unknown-linux-musl
+RUN cargo build --release --locked
 
-FROM scratch AS runtime
+FROM debian:bookworm-slim AS runtime
 
-COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/kaiwadb-tunnel /usr/local/bin/kaiwadb-tunnel
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/target/release/kaiwadb-tunnel /usr/local/bin/kaiwadb-tunnel
 
 ENTRYPOINT ["kaiwadb-tunnel"]
