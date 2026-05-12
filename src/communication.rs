@@ -3,33 +3,30 @@ use serde_json::Value;
 
 use crate::query::Query;
 
-#[derive(Debug, Serialize, Deserialize)]
+/// Server -> tunnel frame. The id is the originating
+/// `tunnel_commands.id` row in the server's database, used to correlate
+/// responses without any in-process routing table.
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ServerMessage {
+    Command { id: i64, request: ServerCommand },
+}
+
+/// Tunnel -> server frame. The id always echoes back the originating
+/// command's id.
+#[derive(Debug, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum TunnelMessage {
+    Result { id: i64, payload: TunnelResult },
+    Error { id: i64, error: String },
+}
+
+#[derive(Debug, Deserialize)]
 pub enum ServerCommand {
     Query(Query),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub enum TunnelResult {
     QueryResult(Value),
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ServerCommandMsg {
-    pub channel: String,
-    pub payload: ServerCommand,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TunnelResultMsg {
-    pub channel: String,
-    pub payload: TunnelResult,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TunnelNotification {}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum PayloadFromTunnel {
-    Result(TunnelResultMsg),
-    Notification(TunnelNotification),
 }

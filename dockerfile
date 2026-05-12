@@ -1,4 +1,4 @@
-FROM rust:1.86.0-slim AS builder
+FROM rust:1.86.0-slim AS chef
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
@@ -7,12 +7,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
+RUN cargo install cargo-chef --locked --version ^0.1
+
 WORKDIR /app
 
-COPY ./Cargo.lock ./Cargo.lock
-COPY ./Cargo.toml ./Cargo.toml
+FROM chef AS planner
+COPY ./Cargo.toml ./Cargo.lock ./
 COPY ./src ./src
+RUN cargo chef prepare --recipe-path recipe.json
 
+FROM chef AS builder
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+COPY ./Cargo.toml ./Cargo.lock ./
+COPY ./src ./src
 RUN cargo build --release --locked
 
 FROM debian:bookworm-slim AS runtime
