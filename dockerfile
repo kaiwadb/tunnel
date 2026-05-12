@@ -1,4 +1,4 @@
-FROM rust:1.86.0-slim AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.86.0-slim AS chef
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
@@ -6,8 +6,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     make \
     gcc \
     && rm -rf /var/lib/apt/lists/*
-
-RUN cargo install cargo-chef --locked --version ^0.1
 
 WORKDIR /app
 
